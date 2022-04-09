@@ -28,7 +28,7 @@ Also, some programs are installed while building the docker container.
 1. Build docker image:
 ~~~
 docker build -t crispys ./ -f Dockerfile
-docker run -p8000:80 crispys
+docker run -p8000:80 crispys --name crispys
 ~~~
 
 2. Upload a file of genes you want to target in Fasta format (each Fasta header is a gene name, exons should follow one another with the same header).
