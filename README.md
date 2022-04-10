@@ -9,7 +9,7 @@ It can also be used to consider the homology of the genes and find the best guid
 
 This feature can be controlled by choosing "alg A" to search in all genes, or "alg E" to consider homology.
 
-To restrict the search for targets to capture in only part of the gene use "where_in_gene" argument (integer 0-1).
+To restrict the search for targets to capture in only part of the gene use "where_in_gene" argument (float 0-1).
 
 The scoring function that ranks the cleavage efficiency of sgRNA is controlled with the "df_targets" argument ("cfd_funct" will use the CFD score).
 
