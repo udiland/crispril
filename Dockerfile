@@ -22,7 +22,7 @@ ENV PATH="/usr/bin:${PATH}"
 
 COPY ./app /app
 COPY ./crispys_code /app/crispys_code
-COPY ./input /app/input
+
 
 ENV PYTHONPATH=/app/crispys_code
 RUN pip install -r /app/requirements.txt
