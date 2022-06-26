@@ -3,6 +3,8 @@ __author__ = 'GH'
 #the naive algorithm - for a given family, with it's group of sgRNA, find the most promising sgRNAs
 import copy
 import Candidate
+import Distance_matrix_and_UPGMA
+import Metric
 import Stage2
 import random
 
@@ -19,49 +21,100 @@ def find_Uno_sgRNA(genes_sg_dict, Omega, df, node, cfd_dict = None, PS_number = 
 	for_single_gene = False
 	return return_candidates(list_of_sg, list_of_sg[0], genes_sg_dict, Omega, df, node, for_single_gene, cfd_dict)
 
+
+def generate_scores(genes_sg_dict, list_of_candidates, scoring_function, cfd_dict = None): #Omer caldararu 24/3
+	"""
+	generates a data structure that contains the candidates and their off-target scores.
+	(in the case of gold off, or any other function that can accept several sgRNA's in a single call)
+	Args:
+		genes_sg_dict: a dictionary : gene name -> targets within the gene
+		list_of_candidates: a list of all possible candidates, given by all_perms()
+		scoring_function: the scoring function
+		cfd_dict: cfd dictionary used for the cfd function
+
+	Returns: scores_dict = {gene : [(target,candidates_target_scores) for target in the gene]}
+	"""
+	scores_dict = {}
+	if scoring_function == Distance_matrix_and_UPGMA.gold_off_func:
+		return generate_scores_one_batch(genes_sg_dict, list_of_candidates, scoring_function, scores_dict)
+	for gene in genes_sg_dict.keys():
+		scores_dict[gene] = []
+		for target in genes_sg_dict[gene]:
+			if scoring_function == Distance_matrix_and_UPGMA.ccTop or scoring_function == Distance_matrix_and_UPGMA.MITScore or scoring_function == Metric.cfd_funct:
+				candidates_target_scores = list(map(lambda sg: scoring_function(sg, target, cfd_dict), list_of_candidates))
+			scores_dict[gene].append((target, candidates_target_scores))
+	return scores_dict
+
+def generate_scores_one_batch(genes_sg_dict, list_of_candidates, scoring_function, scores_dict):
+	"""
+	generates a data structure that contains the candidates and their off-target scores,
+	using a single call of the scoring function.
+	Args:
+		genes_sg_dict: a dictionary : gene name -> targets within the gene
+		list_of_candidates: a list of all possible candidates, given by all_perms()
+		scoring_function: the scoring function
+		scores_dict: an empty dictionary
+	Returns: scores_dict = {gene : [(target,candidates_target_scores) for target in the gene]},
+	"""
+	genes_list = list(genes_sg_dict.keys())
+	batch_targets_list = []
+	batch_candidates_list = []
+	for gene in genes_list:
+		for target in genes_sg_dict[gene]:
+			batch_targets_list += [target] * len(list_of_candidates)
+		batch_candidates_list += list_of_candidates * len(genes_sg_dict[gene])
+	list_of_all_scores = scoring_function(batch_candidates_list, batch_targets_list)
+	i = 0
+	for gene in genes_list:
+		scores_dict[gene] = []
+		for target in genes_sg_dict[gene]:
+			candidates_target_scores = list_of_all_scores[i:i + len(list_of_candidates)]
+			scores_dict[gene].append((target, candidates_target_scores))
+			i += len(list_of_candidates)
+	return scores_dict
+
 def return_candidates(list_of_targets, initial_seq, genes_sg_dict, Omega, df, node, for_single_gene = False, cfd_dict = None, PS_number = 12):
 	dict_of_different_places = wheres_the_differences_linear(list_of_targets) ##node_targets_DS is a python array. where_the_differences.
 	node.polymorphic_sites = dict_of_different_places
-	#list_of_different_places = list(node.polymorphic_sites)
-	if len(dict_of_different_places) > 12 : #change to 12
-		return None
 	list_of_different_places = list(dict_of_different_places.items())
 	list_of_different_places.sort(key=lambda item: item[0])
 	##going over all the permutations
 	list_of_perms_sequs = all_perms(initial_seq, None, list_of_different_places)
-	perm_grades = []  #a list of tuples: (candidate_str,fraction_of_cut, cut_expectation, genes_list)
-	for candidate_str in list_of_perms_sequs:
+	list_of_candididates = []  #a list of tuples: (candidate_str,fraction_of_cut, cut_expectation, genes_list)
+	scores_dict = generate_scores(genes_sg_dict, list_of_perms_sequs, df, cfd_dict)
+	for i in range(len(list_of_perms_sequs)):
 		targets_dict = {} # a list of tuples: (gene name, list of target of this gene that might be cut by the candidate_str)
 		genes_covering = []  #a list of tuples: (gene name, probability to be cut).
-		for gene, targets_lst_of_gene in genes_sg_dict.items(): ##find out if this gene i couched by the sgRNA seq
-			prob_gene_will_not_cut = 1  ##eazier to calculate
-			list_of_targets = []  ##for later knowing where the candidate_str might cut in each gene
+		for gene in scores_dict.keys():
+			prob_gene_will_not_cut = 1  ##the probability that a gene will not be cut by the candidate
+			list_of_targets = []  ##for later knowing where the candidate_str might cut in each gene (when writing the output)
 			num_of_cuts_per_gene = 0 #in use only in the single gene version
-			for target in targets_lst_of_gene:  ##targets_lst_of_gene: list of the target of the gene
-				distance_candidate_target = df(candidate_str, target, cfd_dict)
-				candidate_cut_prob = 1 - distance_candidate_target ##the distance is between 0 to 1. 0 is usually a perfect match, 1 is far
-				sg_site_differents = two_sequs_differeces(candidate_str, target)
-				list_of_targets.append([target, sg_site_differents])
+      
+			for target, candidates_target_scores in scores_dict[gene]:
+				if candidates_target_scores[i] == 1: #in case the distance is 1 (it means that the score is 0 and there isnt attachment of the guide and target nad no cut event) dont consider the target
+					continue
+				candidate_cut_prob = 1 - candidates_target_scores[i]
+				sg_site_differents = two_sequs_differeces(list_of_perms_sequs[i], target) ## the differences between the ith candidate and the target
+
+				list_of_targets.append([target[:20], sg_site_differents])
 				prob_gene_will_not_cut = prob_gene_will_not_cut * (1- candidate_cut_prob)  #lowering the not cut prob in each sgRNA
 				num_of_cuts_per_gene += candidate_cut_prob
 			prob_gene_cut = 1 - prob_gene_will_not_cut
-			if len(list_of_targets) > 0:
-				targets_dict[gene] = list_of_targets  #targets of this gene to be cleaved by the current candidate
-			if (for_single_gene):
+			if for_single_gene: # is this necessary? omer 11/4
 				genes_covering.append((gene, num_of_cuts_per_gene))
-			else:
+			if prob_gene_cut >= Omega:
+				targets_dict[gene] = list_of_targets
 				genes_covering.append((gene, prob_gene_cut))
 		cut_expection = 0  ##the probability the permutationed sequence will cut all of the genes, that the probability each of them will be cut is greater then Omega
 		genes_score_dict = {}  # a dict of genes: genes considered cut by this sequence, and cut prob
 		for tuple in genes_covering:  #tuple : (gene name, probability to be cut)
 			cut_expection += tuple[1]  ## the prob to cut all the genes
 			genes_score_dict[tuple[0]] = tuple[1]
-		if cut_expection >= 1: #is this condition necessary?
-			current_candidate = Candidate.Candidate(candidate_str, cut_expection, genes_score_dict, targets_dict)
-			perm_grades.append(current_candidate)
+		if len(genes_covering) >= 1: #If the candidate has at least one gene with a score above Omega, add it to the result  omer 18/04
+			current_candidate = Candidate.Candidate(list_of_perms_sequs[i], cut_expection, genes_score_dict, targets_dict)
+			list_of_candididates.append(current_candidate)
 	del list_of_perms_sequs
-	#print(perm_grades)
-	return perm_grades
+	return list_of_candididates
 
 def find_Uno_sgRNA_bottems_up_not_num_of_PS_stoppes(genes_sg_dict, Omega, df, node):
 	''' not Uno any more....
@@ -86,10 +139,10 @@ def find_Uno_sgRNA_bottems_up_not_num_of_PS_stoppes(genes_sg_dict, Omega, df, no
 
 def make_candidates_dict(candidates_list):
 	'''takes a list of candidate, and return a dictionary of candidates, with the seq as the key'''
-	res = dict()
+	candidates_dict = dict()
 	for candidate in candidates_list:
-		res[candidate.seq] = candidate
-	return res
+		candidates_dict[candidate.seq] = candidate
+	return candidates_dict
 
 def marge_children_candidates_DS(genes_sg_dict, Omega, df, node):
 	'''
@@ -319,7 +372,7 @@ def all_perms(initial_seq, list_of_sequs, list_of_differences):
 		if(list_of_sequs):
 			return list_of_sequs
 		elif(initial_seq):
-			return [initial_seq]
+			return [initial_seq[:20]]
 		else:
 			return []
 	else:
