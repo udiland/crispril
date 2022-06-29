@@ -18,7 +18,7 @@ RUN wget http://evolution.gs.washington.edu/phylip/download/phylip-3.697.tar.gz 
 RUN mkdir /crispys_out
 RUN mkdir /input
 
-ENV PATH="/usr/bin:${PATH}" 
+ENV PATH="/usr/bin:/crispys_out:${PATH}" 
 
 COPY ./app /app
 COPY ./crispys_code /app/crispys_code
@@ -28,3 +28,4 @@ ENV PYTHONPATH=/app/crispys_code
 RUN pip install -r /app/requirements.txt
 
 RUN cp ./phylip-3.697/exe/protdist /crispys_out/
+

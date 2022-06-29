@@ -38,6 +38,7 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            os.system("ls -lh /input")
 
     return '''
         <!doctype html>
@@ -49,7 +50,7 @@ def upload_file():
         </form>
         '''
 
-    # os.system("ls -lh /input")
+
 
 
 class RequestBase(BaseModel):
@@ -71,7 +72,7 @@ def hello():
 def get_output():
     """Download crispys result file to /crispys_out folder."""
     try:
-        return send_from_directory("/crispys_out/", "output.csv", as_attachment=True)
+        return send_from_directory("/crispys_out/", "CRISPys_output.csv", as_attachment=True)
     except FileNotFoundError:
         abort(404)
 
@@ -104,7 +105,7 @@ def run_crispys(**kwargs):
         crispys_req.PS_number
     ]
 
-    # print(crispys_args)
+    print(crispys_args)
 
 
     # get the input file path
@@ -115,7 +116,7 @@ def run_crispys(**kwargs):
                         20, 0, crispys_args[5], crispys_args[6])
 
     # check there is an output
-    os.system( "wc -l /crispys_out/output.csv" )
+    os.system( "wc -l /crispys_out/CRISPys_output.csv" )
 
 
     return {"args":crispys_args}
