@@ -68,14 +68,21 @@ def hello():
     return "Hello World from Flask!"
 
 
-@app.route('/download', methods=["GET"])
-def get_output():
-    """Download crispys result file to /crispys_out folder."""
+@app.route('/get_result', methods=["GET"])
+def get_crispys_output():
+    """copy crispys result file to /crispys_out folder."""
     try:
         return send_from_directory("/crispys_out/", "CRISPys_output.csv", as_attachment=True)
     except FileNotFoundError:
         abort(404)
 
+@app.route('/get_tree', methods=["GET"])
+def get_tree_output():
+    """copy gene tree file to /crispys_out folder."""
+    try:
+        return send_from_directory("/crispys_out/", "tree.newick", as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
 
 @app.route("/crispys", methods=["POST"])
 @webargs(body=RequestBase)
@@ -116,7 +123,7 @@ def run_crispys(**kwargs):
                         20, 0, crispys_args[5], crispys_args[6])
 
     # check there is an output
-    os.system( "wc -l /crispys_out/CRISPys_output.csv" )
+    os.system("wc -l /crispys_out/CRISPys_output.csv")
 
 
     return {"args":crispys_args}
